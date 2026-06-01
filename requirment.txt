@@ -1,0 +1,14 @@
+numpy==1.26.4
+yfinance
+pinecone-client>=3.0.0
+langchain-pinecone
+langchain-huggingface
+langchain-core
+sentence-transformers>=2.7.0
+scikit-learn
+groq
+pandas
+plotly
+requests
+beautifulsoup4
+lxml
