@@ -1,4 +1,4 @@
-numpy==1.26.4
+numpy<2.0
 yfinance
 pinecone-client>=3.0.0
 langchain-pinecone
@@ -7,6 +7,7 @@ langchain-core
 sentence-transformers>=2.7.0
 scikit-learn
 groq
+streamlit
 pandas
 plotly
 requests
