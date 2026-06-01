@@ -35,6 +35,8 @@ Cosine similarity is the mathematical measure used to compare vectors. Two vecto
 This approach is fundamentally different from using ChatGPT directly. A direct ChatGPT query about semiconductor companies would return a hallucinated or outdated list based on whatever the model learned during training. This system retrieves actual, live companies from a database of real SEC-registered businesses, with real Yahoo Finance financial metrics attached and uses the LLM only to interpret and rank the results rather than generate them from memory.
 
 ### Parallel Ingestion of 10,000+ Stocks
+<img width="329" height="1616" alt="image" src="https://github.com/user-attachments/assets/c8442f8d-4aab-4396-bbb2-bc9648d147f0" />
+<img width="1125" height="853" alt="image" src="https://github.com/user-attachments/assets/154714f3-4062-4365-aa91-486c4bddb904" />
 
 Ingesting over 10,000 company descriptions into Pinecone sequentially would take hours because each stock requires an HTTP request to Yahoo Finance, a text embedding computation and an upsert to Pinecone. Sequential processing handles one stock at a time: fetch AAPL, wait for the response, store it, then move to GOOGL, wait, store and so on.
 
