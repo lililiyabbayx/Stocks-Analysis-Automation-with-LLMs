@@ -1,20 +1,20 @@
+streamlit
 numpy<2.0
-
-streamlit>=1.35.0
-pandas>=2.2.0
-plotly>=5.22.0
-
-yfinance>=0.2.40
-requests>=2.32.0
-beautifulsoup4>=4.12.3
-lxml>=5.2.2
+pandas
+plotly
+yfinance
+requests
+beautifulsoup4
+lxml
 
 pinecone-client>=3.0.0
-langchain-pinecone>=0.1.0
-langchain-huggingface>=0.0.3
-langchain-core>=0.2.0
+langchain-core
+langchain-pinecone
+langchain-huggingface
 
 sentence-transformers>=2.7.0
-scikit-learn>=1.5.0
+transformers
+torch
+scikit-learn
 
-groq>=0.9.0
+groq
