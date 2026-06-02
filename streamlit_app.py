@@ -1,4 +1,3 @@
-# CELL 16 - WRITE THE STREAMLIT APP FILE
 
 import os
 import re
