@@ -27,7 +27,7 @@ GROQ_API_KEY     = os.environ.get("GROQ_API_KEY", "")
 NEWS_API_KEY     = os.environ.get("NEWS_API_KEY", "")
 INDEX_NAME       = "stocks"
 NAMESPACE        = "stock-descriptions"
-GROQ_MODEL       = "llama-3.1-8b-instant"
+GROQ_MODEL       = "openai/gpt-oss-120b"
 EMBED_MODEL      = "sentence-transformers/all-mpnet-base-v2"
 
 RADAR_DIMS = [
