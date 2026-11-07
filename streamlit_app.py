@@ -285,39 +285,191 @@ def comparison_summary(client, stocks):
 # Radar functions 
 
 def score_radar(client, stock):
+
     def fp(v):
-        try: return f"{float(v)*100:.1f}%"
-        except: return "N/A"
+        try:
+            return f"{float(v) * 100:.1f}%"
+        except (TypeError, ValueError):
+            return "N/A"
+
     ctx = (
-        f"Company: {stock.get('Name')} ({stock.get('Ticker')})\n"
-        f"Sector: {stock.get('Sector')} | Industry: {stock.get('Industry')}\n"
+        f"Company: {stock.get('Name')}\n"
+        f"Ticker: {stock.get('Ticker')}\n"
+        f"Sector: {stock.get('Sector')}\n"
+        f"Industry: {stock.get('Industry')}\n"
         f"Earnings Growth: {fp(stock.get('Earnings Growth'))}\n"
         f"Revenue Growth: {fp(stock.get('Revenue Growth'))}\n"
         f"Gross Margins: {fp(stock.get('Gross Margins'))}\n"
         f"EBITDA Margins: {fp(stock.get('EBITDA Margins'))}\n"
         f"52-Week Change: {fp(stock.get('52 Week Change'))}\n"
-        f"Business: {stock.get('Business Summary','')[:400]}"
+        f"Business Description: "
+        f"{stock.get('Business Summary', '')[:1000]}"
     )
-    sys_p = (
-        "Score this company on 6 dimensions (0-10). "
-        "Return ONLY this JSON format:\n"
-        '{"scores":{"Growth Potential":7,"Financial Health":6,"Market Competition":5,'
-        '"Innovation":8,"Industry Trends":7,"Regulatory Environment":6},'
-        '"explanations":{"Growth Potential":"sentence","Financial Health":"sentence",'
-        '"Market Competition":"sentence","Innovation":"sentence",'
-        '"Industry Trends":"sentence","Regulatory Environment":"sentence"}}\n'
-        "Scoring: 10=excellent, 7-9=good, 5-6=average, 3-4=weak, 0-2=very poor. "
-        "Market Competition: 10=near monopoly. Regulatory Environment: 10=unregulated."
-    )
-    raw    = groq_call(client, sys_p, ctx, temp=0.1, max_tok=400)
-    parsed = parse_json(raw)
-    if not parsed or not parsed.get("scores"):
-        return {"ticker": stock.get("Ticker","?"),
-                "scores": {d:5 for d in RADAR_DIMS},
-                "explanations": {d:"Analysis unavailable." for d in RADAR_DIMS}}
-    return {"ticker": stock.get("Ticker","?"),
-            "scores": parsed.get("scores",{}),
-            "explanations": parsed.get("explanations",{})}
+
+    # Strict JSON schema: all six scores and explanations are required.
+    score_properties = {
+        d: {
+            "type": "integer",
+            "enum": list(range(11))
+        }
+        for d in RADAR_DIMS
+    }
+
+    explanation_properties = {
+        d: {"type": "string"}
+        for d in RADAR_DIMS
+    }
+
+    radar_schema = {
+        "type": "object",
+        "properties": {
+            "scores": {
+                "type": "object",
+                "properties": score_properties,
+                "required": RADAR_DIMS,
+                "additionalProperties": False
+            },
+            "explanations": {
+                "type": "object",
+                "properties": explanation_properties,
+                "required": RADAR_DIMS,
+                "additionalProperties": False
+            }
+        },
+        "required": ["scores", "explanations"],
+        "additionalProperties": False
+    }
+
+    sys_p = """
+You are a professional equity research analyst.
+
+Evaluate the company using its financial metrics,
+business description, sector and industry.
+
+Score each investment dimension independently from 0 to 10.
+
+SCORING GUIDELINES:
+
+1. Growth Potential:
+   10 = exceptional sustainable growth opportunities.
+   5 = moderate growth.
+   0 = severe growth deterioration.
+
+2. Financial Health:
+   10 = excellent profitability and financial resilience.
+   5 = average financial position.
+   0 = severe financial weakness.
+
+3. Market Competition:
+   10 = dominant competitive position and strong moat.
+   5 = average competitive position.
+   0 = intense competition and weak differentiation.
+
+4. Innovation:
+   10 = exceptional innovation and product differentiation.
+   5 = average innovation.
+   0 = weak innovation capability.
+
+5. Industry Trends:
+   10 = strong secular tailwinds and expanding demand.
+   5 = mixed industry outlook.
+   0 = severe structural industry headwinds.
+
+6. Regulatory Environment:
+   10 = favorable and manageable regulatory risk.
+   5 = moderate regulatory exposure.
+   0 = severe regulatory constraints.
+
+IMPORTANT:
+- Higher scores always mean a more favorable investment condition.
+- Score each company individually.
+- Do not assign identical scores to every company.
+- Do not invent financial figures or facts.
+- Base scores only on the supplied information.
+- When evidence is insufficient, use a conservative score
+  and explicitly mention the information limitation.
+- Give a concise, company-specific explanation for every score.
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": sys_p},
+                {"role": "user", "content": ctx}
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "market_trend_radar",
+                    "strict": True,
+                    "schema": radar_schema
+                }
+            },
+            temperature=0.1,
+            max_completion_tokens=1200
+        )
+
+        raw = response.choices[0].message.content
+        parsed = json.loads(raw)
+
+        scores = parsed["scores"]
+        explanations = parsed["explanations"]
+
+        # Additional application-level validation
+        for d in RADAR_DIMS:
+            if type(scores[d]) is not int or not 0 <= scores[d] <= 10:
+                raise ValueError(f"Invalid score for {d}")
+
+            if not isinstance(explanations[d], str):
+                raise ValueError(f"Invalid explanation for {d}")
+
+        return {
+            "ticker": stock.get("Ticker", "?"),
+            "scores": scores,
+            "explanations": explanations
+        }
+
+    except Exception as e:
+        return {
+            "ticker": stock.get("Ticker", "?"),
+            "error": f"{type(e).__name__}: {str(e)[:250]}"
+        }
+
+# def score_radar(client, stock):
+#     def fp(v):
+#         try: return f"{float(v)*100:.1f}%"
+#         except: return "N/A"
+#     ctx = (
+#         f"Company: {stock.get('Name')} ({stock.get('Ticker')})\n"
+#         f"Sector: {stock.get('Sector')} | Industry: {stock.get('Industry')}\n"
+#         f"Earnings Growth: {fp(stock.get('Earnings Growth'))}\n"
+#         f"Revenue Growth: {fp(stock.get('Revenue Growth'))}\n"
+#         f"Gross Margins: {fp(stock.get('Gross Margins'))}\n"
+#         f"EBITDA Margins: {fp(stock.get('EBITDA Margins'))}\n"
+#         f"52-Week Change: {fp(stock.get('52 Week Change'))}\n"
+#         f"Business: {stock.get('Business Summary','')[:400]}"
+#     )
+#     sys_p = (
+#         "Score this company on 6 dimensions (0-10). "
+#         "Return ONLY this JSON format:\n"
+#         '{"scores":{"Growth Potential":7,"Financial Health":6,"Market Competition":5,'
+#         '"Innovation":8,"Industry Trends":7,"Regulatory Environment":6},'
+#         '"explanations":{"Growth Potential":"sentence","Financial Health":"sentence",'
+#         '"Market Competition":"sentence","Innovation":"sentence",'
+#         '"Industry Trends":"sentence","Regulatory Environment":"sentence"}}\n'
+#         "Scoring: 10=excellent, 7-9=good, 5-6=average, 3-4=weak, 0-2=very poor. "
+#         "Market Competition: 10=near monopoly. Regulatory Environment: 10=unregulated."
+#     )
+#     raw    = groq_call(client, sys_p, ctx, temp=0.1, max_tok=400)
+#     parsed = parse_json(raw)
+#     if not parsed or not parsed.get("scores"):
+#         return {"ticker": stock.get("Ticker","?"),
+#                 "scores": {d:5 for d in RADAR_DIMS},
+#                 "explanations": {d:"Analysis unavailable." for d in RADAR_DIMS}}
+#     return {"ticker": stock.get("Ticker","?"),
+#             "scores": parsed.get("scores",{}),
+#             "explanations": parsed.get("explanations",{})}
 
 def radar_chart(data):
     """
@@ -906,45 +1058,146 @@ def main():
     sel_radar = st.multiselect("Select stocks for radar:", tickers_list,
                                default=tickers_list, key="r_sel")
 
+    # if st.button("Generate Radar Scores", type="primary"):
+    
     if st.button("Generate Radar Scores", type="primary"):
-        sel_s = [s for s in stocks if s.get("Ticker") in sel_radar]
-        rd    = []
-        prog  = st.progress(0)
-        for i,s in enumerate(sel_s):
-            prog.progress((i+1)/len(sel_s), f"Scoring {s.get('Ticker')}...")
-            result = score_radar(groq_client, s)
-            rd.append(result)
-        prog.empty()
-        st.session_state.radar = rd
-
-    radar_data = [r for r in st.session_state.radar if r["ticker"] in sel_radar]
-
-    if radar_data:
-        # FIX: only show chart if scores are actually different from all-5
-        all_same = all(
-            list(r["scores"].values()) == [5]*6
-            for r in radar_data
-        )
-        if all_same:
-            st.warning("Radar scoring returned default values. "
-                       "The LLM JSON response may have failed. Try regenerating.")
+    
+        if not sel_radar:
+            st.warning("Select at least one stock.")
+            st.session_state.radar = []
+    
         else:
-            st.markdown("**Market Trend Radar - All Selected Stocks**")
-            st.plotly_chart(radar_chart(radar_data), use_container_width=True)
-
+            sel_s = [
+                s for s in stocks
+                if s.get("Ticker") in sel_radar
+            ]
+    
+            rd = []
+            prog = st.progress(0)
+    
+            for i, s in enumerate(sel_s):
+                ticker = s.get("Ticker", "?")
+    
+                prog.progress(
+                    (i + 1) / len(sel_s),
+                    f"Scoring {ticker}..."
+                )
+    
+                result = score_radar(groq_client, s)
+                rd.append(result)
+    
+            prog.empty()
+            st.session_state.radar = rd
+    
+    
+    radar_data = [
+        r for r in st.session_state.radar
+        if r["ticker"] in sel_radar
+    ]
+    
+    # Separate successful and failed API responses
+    valid_radar = [
+        r for r in radar_data
+        if "scores" in r
+    ]
+    
+    failed_radar = [
+        r for r in radar_data
+        if "error" in r
+    ]
+    
+    # Show actual API errors
+    if failed_radar:
+    
+        st.error(
+            f"Radar scoring failed for {len(failed_radar)} stock(s)."
+        )
+    
+        with st.expander("View scoring errors"):
+            for r in failed_radar:
+                st.write(
+                    f"{r['ticker']}: {r['error']}"
+                )
+    
+    # Display successful results
+    if valid_radar:
+    
+        st.markdown("**Market Trend Radar - All Selected Stocks**")
+    
+        st.plotly_chart(
+            radar_chart(valid_radar),
+            use_container_width=True
+        )
+    
         st.markdown("**Factor Explanations**")
-        for rd in radar_data:
+    
+        for rd in valid_radar:
+    
             with st.expander(f"Explanations for {rd['ticker']}"):
+    
                 for dim in RADAR_DIMS:
-                    score = rd["scores"].get(dim, 5)
-                    expl  = rd["explanations"].get(dim, "")
-                    col   = score_color(score)
+    
+                    score = rd["scores"][dim]
+                    expl = rd["explanations"][dim]
+                    col = score_color(score)
+    
                     st.markdown(
-                        f'<div class="exp-row"><span class="exp-dim">{dim}</span> '
-                        f'<span style="color:{col};font-family:monospace;">[{score}/10]</span>: '
-                        f'{expl}</div>', unsafe_allow_html=True)
-    else:
+                        f'<div class="exp-row">'
+                        f'<span class="exp-dim">{dim}</span> '
+                        f'<span style="color:{col};font-family:monospace;">'
+                        f'[{score}/10]</span>: {expl}</div>',
+                        unsafe_allow_html=True
+                    )
+    
+    elif not failed_radar and not radar_data:
+    
         st.info("Click 'Generate Radar Scores' to build the chart.")
+    
+    else:
+    
+        st.warning(
+            "No valid radar scores were generated. "
+            "Check the API errors above and try again."
+        )
+
+    #     sel_s = [s for s in stocks if s.get("Ticker") in sel_radar]
+    #     rd    = []
+    #     prog  = st.progress(0)
+    #     for i,s in enumerate(sel_s):
+    #         prog.progress((i+1)/len(sel_s), f"Scoring {s.get('Ticker')}...")
+    #         result = score_radar(groq_client, s)
+    #         rd.append(result)
+    #     prog.empty()
+    #     st.session_state.radar = rd
+
+    # radar_data = [r for r in st.session_state.radar if r["ticker"] in sel_radar]
+
+    # if radar_data:
+    #     # FIX: only show chart if scores are actually different from all-5
+    #     all_same = all(
+    #         list(r["scores"].values()) == [5]*6
+    #         for r in radar_data
+    #     )
+    #     if all_same:
+    #         st.warning("Radar scoring returned default values. "
+    #                    "The LLM JSON response may have failed. Try regenerating.")
+    #     else:
+    #         st.markdown("**Market Trend Radar - All Selected Stocks**")
+    #         st.plotly_chart(radar_chart(radar_data), use_container_width=True)
+
+    #     st.markdown("**Factor Explanations**")
+    #     for rd in radar_data:
+    #         with st.expander(f"Explanations for {rd['ticker']}"):
+    #             for dim in RADAR_DIMS:
+    #                 score = rd["scores"].get(dim, 5)
+    #                 expl  = rd["explanations"].get(dim, "")
+    #                 col   = score_color(score)
+    #                 st.markdown(
+    #                     f'<div class="exp-row"><span class="exp-dim">{dim}</span> '
+    #                     f'<span style="color:{col};font-family:monospace;">[{score}/10]</span>: '
+    #                     f'{expl}</div>', unsafe_allow_html=True)
+    # else:
+    #     st.info("Click 'Generate Radar Scores' to build the chart.")
 
     # SECTION 3 - NEWS SENTIMENT
     st.markdown('<div class="sec-title">News Sentiment Analysis</div>',
