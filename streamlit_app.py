@@ -471,65 +471,149 @@ IMPORTANT:
 #             "scores": parsed.get("scores",{}),
 #             "explanations": parsed.get("explanations",{})}
 
+
 def radar_chart(data):
-    """
-    FIX: Use bright distinct colors so each stock is clearly visible.
-    Previous version had near-identical muted colors making lines indistinguishable.
-    """
+
     COLORS = [
-        "#00d4ff",   # bright cyan
-        "#ff6b35",   # bright orange
-        "#7fff00",   # chartreuse
-        "#ff3cac",   # hot pink
-        "#ffd700",   # gold
-        "#a855f7",   # purple
-        "#00ff88",   # mint green
-        "#ff4757",   # red
+        "#00d4ff",
+        "#ff6b35",
+        "#7fff00",
+        "#ff3cac",
+        "#ffd700",
+        "#a855f7",
+        "#00ff88",
+        "#ff4757",
     ]
+
     fig = go.Figure()
+
     for i, rd in enumerate(data):
-        color  = COLORS[i % len(COLORS)]
-        scores = [rd["scores"].get(d, 5) for d in RADAR_DIMS] + \
-                 [rd["scores"].get(RADAR_DIMS[0], 5)]
-        # Build hover text showing score + explanation per dimension
-        hover  = [
+
+        color = COLORS[i % len(COLORS)]
+
+        scores = [
+            rd["scores"].get(d, 5) for d in RADAR_DIMS
+        ] + [
+            rd["scores"].get(RADAR_DIMS[0], 5)
+        ]
+
+        hover = [
             f"<b>{rd['ticker']}</b><br>"
-            f"{d}: {rd['scores'].get(d,5)}/10<br>"
-            f"<i>{rd['explanations'].get(d,'')[:80]}</i>"
+            f"{d}: {rd['scores'].get(d, 5)}/10<br>"
+            f"<i>{rd['explanations'].get(d, '')[:100]}</i>"
             for d in RADAR_DIMS
-        ] + [f"<b>{rd['ticker']}</b><br>{RADAR_DIMS[0]}: {rd['scores'].get(RADAR_DIMS[0],5)}/10"]
+        ] + [
+            f"<b>{rd['ticker']}</b><br>"
+            f"{RADAR_DIMS[0]}: {rd['scores'].get(RADAR_DIMS[0], 5)}/10"
+        ]
+
+        # Convert hex color into transparent RGBA fill
+        rgb = tuple(
+            int(color[j:j+2], 16)
+            for j in (1, 3, 5)
+        )
+        fill = f"rgba({rgb[0]},{rgb[1]},{rgb[2]},0.12)"
 
         fig.add_trace(go.Scatterpolar(
-            r=scores, theta=RADAR_DIMS + [RADAR_DIMS[0]],
-            fill="toself", name=rd["ticker"],
-            line=dict(color=color, width=3),
-            fillcolor=color, opacity=0.15,
-            hovertext=hover, hoverinfo="text",
+            r=scores,
+            theta=RADAR_DIMS + [RADAR_DIMS[0]],
+            fill="toself",
+            name=rd["ticker"],
+
+            line=dict(
+                color=color,
+                width=2.5
+            ),
+
+            marker=dict(
+                size=5,
+                color=color
+            ),
+
+            fillcolor=fill,
+            hovertext=hover,
+            hoverinfo="text",
         ))
-    # FIX: Set polar bgcolor to white so the bright stock colors are clearly
-    # visible against the circle background instead of disappearing into the
-    # dark theme. Grid lines are light grey, tick labels are dark for contrast.
+
+    # DARK THEME
     fig.update_layout(
+
         polar=dict(
-            radialaxis=dict(visible=True, range=[0,10],
-                            tickvals=[2,4,6,8,10],
-                            gridcolor="#cccccc", color="#333333",
-                            tickfont=dict(size=9,color="#333333"),
-                            linecolor="#aaaaaa"),
-            angularaxis=dict(gridcolor="#cccccc",
-                             tickfont=dict(size=11,color="#111111"),
-                             linecolor="#aaaaaa"),
-            bgcolor="#ffffff",   # FIX: white circle background
+
+            # Fix white radar circle
+            bgcolor="#0c0e16",
+
+            radialaxis=dict(
+                visible=True,
+                range=[0, 10],
+                tickvals=[2, 4, 6, 8, 10],
+
+                # Radar grid
+                gridcolor="#263247",
+                linecolor="#344054",
+                linewidth=1,
+
+                # Readable numbers
+                color="#c0c8e0",
+                tickfont=dict(
+                    size=10,
+                    color="#c0c8e0"
+                )
+            ),
+
+            angularaxis=dict(
+
+                # Radar dimension lines
+                gridcolor="#263247",
+                linecolor="#344054",
+                linewidth=1,
+
+                # Readable dimension names
+                tickfont=dict(
+                    size=11,
+                    color="#e5e7eb"
+                )
+            )
         ),
-        paper_bgcolor="#0c0e16", plot_bgcolor="#0c0e16",
-        font=dict(color="#c0c8e0", size=11),
-        legend=dict(bgcolor="#07080d", bordercolor="#1a1f2e", borderwidth=1,
-                    font=dict(color="#ffffff")),
-        margin=dict(l=70,r=70,t=40,b=40), height=500,
-        hoverlabel=dict(bgcolor="#ffffff", bordercolor="#2d3a56",
-                        font=dict(color="#111111")),
+
+        paper_bgcolor="#07080d",
+        plot_bgcolor="#07080d",
+
+        font=dict(
+            color="#e5e7eb",
+            size=11
+        ),
+
+        legend=dict(
+            bgcolor="#0c0e16",
+            bordercolor="#263247",
+            borderwidth=1,
+            font=dict(
+                color="#e5e7eb",
+                size=11
+            )
+        ),
+
+        margin=dict(
+            l=70,
+            r=70,
+            t=40,
+            b=40
+        ),
+
+        height=500,
+
+        hoverlabel=dict(
+            bgcolor="#171c2a",
+            bordercolor="#344054",
+            font=dict(
+                color="#ffffff"
+            )
+        )
     )
+
     return fig
+
 
 #  News sentiment functions 
 
